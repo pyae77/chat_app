@@ -2,14 +2,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dart_either/dart_either.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_chat_app/core/failures/app_failure.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../../domain/entities/user_profile_entity.dart';
 import '../../domain/repositories/profile_repository.dart';
 
 class ProfileRepositoryImpl implements ProfileRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+  final GoogleSignIn _googleSignIn;
 
-  @override
+  ProfileRepositoryImpl({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    GoogleSignIn? googleSignIn,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance,
+        _googleSignIn = googleSignIn ?? GoogleSignIn();
+
   @override
   Stream<Either<AppFailure, UserProfileEntity?>> getUserProfile() {
     final uid = _auth.currentUser?.uid;
@@ -28,7 +37,10 @@ class ProfileRepositoryImpl implements ProfileRepository {
           name: data['name'] ?? '',
           email: data['email'] ?? _auth.currentUser?.email ?? '',
           bio: data['bio'] ?? '',
-          photoBase64: data['photoBase64'],
+          photoBase64: (data['photoBase64'] is String &&
+                  (data['photoBase64'] as String).trim().isNotEmpty)
+              ? (data['photoBase64'] as String).trim()
+              : null,
           isOnline: data['isOnline'] ?? false,
           lastSeen: (data['lastSeen'] as Timestamp?)?.toDate(),
         );
@@ -89,6 +101,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
           'lastSeen': FieldValue.serverTimestamp(),
         });
       }
+      await _googleSignIn.signOut();
       await _auth.signOut();
       return const Right(null);
     } catch (e) {

@@ -6,38 +6,46 @@ class ChatUserModel extends ChatUserEntity {
     required super.name,
     required super.email,
     super.photoUrl,
+    super.photoBase64,
     super.isOnline,
   });
 
-  // Firestore Document to Model
   factory ChatUserModel.fromFirestore(Map<String, dynamic> json, String docId) {
     return ChatUserModel(
       uid: docId,
       name: json['name'] ?? '',
       email: json['email'] ?? '',
-      photoUrl: json['photoUrl'],
+      photoUrl: _readNonEmptyString(json['photoUrl']) ??
+          _readNonEmptyString(json['profilePic']),
+      photoBase64: _readNonEmptyString(json['photoBase64']),
       isOnline: json['isOnline'] ?? false,
     );
   }
 
-  // from Model to Firestore just in case
   Map<String, dynamic> toFirestore() {
     return {
       'name': name,
       'email': email,
       'photoUrl': photoUrl,
+      'photoBase64': photoBase64,
       'isOnline': isOnline,
     };
   }
 
-  // change to entity to use in domain layer
   ChatUserEntity toEntity() {
     return ChatUserEntity(
       uid: uid,
       name: name,
       email: email,
       photoUrl: photoUrl,
+      photoBase64: photoBase64,
       isOnline: isOnline,
     );
+  }
+
+  static String? _readNonEmptyString(dynamic value) {
+    if (value is! String) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 }

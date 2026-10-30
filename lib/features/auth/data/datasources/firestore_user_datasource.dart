@@ -20,6 +20,8 @@ class FirestoreUserDataSource {
       'name': user.displayName ?? fallbackName ?? 'No Name',
       'email': user.email ?? fallbackEmail ?? '',
       'profilePic': user.photoURL ?? '',
+      'photoUrl': user.photoURL ?? '',
+      'photoBase64': null,
       'createdAt': FieldValue.serverTimestamp(),
       'isOnline': isOnline,
     });

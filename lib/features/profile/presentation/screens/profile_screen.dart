@@ -1,9 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_chat_app/core/routes/route_names.dart';
 import 'package:flutter_chat_app/core/theme/app_colors.dart';
+import 'package:flutter_chat_app/gen/assets.gen.dart';
+import 'package:flutter_chat_app/presentation/widgets/custom_app_bar.dart';
+import 'package:flutter_chat_app/presentation/widgets/custom_button.dart';
 import 'package:flutter_chat_app/presentation/widgets/custom_text_widget.dart';
+import 'package:flutter_chat_app/presentation/widgets/custom_textfield.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../providers/profile_providers.dart';
@@ -26,7 +32,9 @@ class ProfileScreen extends ConsumerWidget {
 
       final currentProfile = ref.read(userProfileStreamProvider).value;
       if (currentProfile != null) {
-        ref.read(profileControllerProvider.notifier).updateProfile(
+        ref
+            .read(profileControllerProvider.notifier)
+            .updateProfile(
               name: currentProfile.name,
               bio: currentProfile.bio,
               photoBase64: base64String,
@@ -36,7 +44,12 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   // Bottom Sheet for Editing Name and Bio
-  void _showEditProfileDialog(BuildContext context, WidgetRef ref, String currentName, String currentBio) {
+  void _showEditProfileDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String currentName,
+    String currentBio,
+  ) {
     final nameController = TextEditingController(text: currentName);
     final bioController = TextEditingController(text: currentBio);
 
@@ -65,44 +78,28 @@ class ProfileScreen extends ConsumerWidget {
                 fontWeight: FontWeight.bold,
               ),
               const SizedBox(height: 16),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
+              CustomTextField(controller: nameController, hintText: 'name'),
               const SizedBox(height: 12),
-              TextField(
+              CustomTextField(
                 controller: bioController,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Bio',
-                  border: OutlineInputBorder(),
-                ),
+                maxlines: 4,
+                hintText: 'bio',
               ),
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    ref.read(profileControllerProvider.notifier).updateProfile(
-                          name: nameController.text.trim(),
-                          bio: bioController.text.trim(),
-                        );
-                  },
-                  child: const CustomTextWidget(
-                    text: 'Save Changes',
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              )
+              CustomButton(
+                buttonWidth: double.infinity,
+                textColor: AppColors.white,
+                text: 'Save  Changes',
+                onPressed: () {
+                  context.pop();
+                  ref
+                      .read(profileControllerProvider.notifier)
+                      .updateProfile(
+                        name: nameController.text.trim(),
+                        bio: bioController.text.trim(),
+                      );
+                },
+              ),
             ],
           ),
         );
@@ -113,23 +110,33 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(userProfileStreamProvider);
-
+    final profileState = ref.watch(profileControllerProvider);
+    final isLoggingOut =
+        profileState.isLoading &&
+        ref.read(profileControllerProvider.notifier).isSigningOut;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const CustomTextWidget(
+      appBar: CustomAppBar(
+        middleWidget: CustomTextWidget(
           text: 'Profile',
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
+          fontSize: 24,
+          fontWeight: FontWeight.w600,
+          color: AppColors.accent,
         ),
-        backgroundColor: AppColors.surface,
-        elevation: 0,
+        leading: Assets.icons.icArrowLeft.path,
+        leadingPressed: () {
+          context.pop();
+        },
       ),
       body: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
+        error: (err, stack) =>
+            Center(child: CustomTextWidget(text: 'Error: $err')),
         data: (profile) {
-          if (profile == null) return const Center(child: Text('User not found'));
+          if (profile == null)
+            return const Center(
+              child: CustomTextWidget(text: 'User not found'),
+            );
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20.0),
@@ -142,11 +149,19 @@ class ProfileScreen extends ConsumerWidget {
                       CircleAvatar(
                         radius: 54,
                         backgroundColor: AppColors.primary.withOpacity(0.1),
-                        backgroundImage: profile.photoBase64 != null
+                        backgroundImage:
+                            profile.photoBase64 != null &&
+                                profile.photoBase64!.trim().isNotEmpty
                             ? MemoryImage(base64Decode(profile.photoBase64!))
                             : null,
-                        child: profile.photoBase64 == null
-                            ? const Icon(Icons.person, size: 54, color: AppColors.primary)
+                        child:
+                            profile.photoBase64 == null ||
+                                profile.photoBase64!.trim().isEmpty
+                            ? const Icon(
+                                Icons.person,
+                                size: 54,
+                                color: AppColors.primary,
+                              )
                             : null,
                       ),
                       Positioned(
@@ -157,7 +172,11 @@ class ProfileScreen extends ConsumerWidget {
                           child: CircleAvatar(
                             radius: 18,
                             backgroundColor: AppColors.primary,
-                            child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              size: 18,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
@@ -175,9 +194,20 @@ class ProfileScreen extends ConsumerWidget {
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.primary),
-                      onPressed: () => _showEditProfileDialog(context, ref, profile.name, profile.bio),
+                    const SizedBox(width: 6),
+                    InkWell(
+                      onTap: () => _showEditProfileDialog(
+                        context,
+                        ref,
+                        profile.name,
+                        profile.bio,
+                      ),
+                      child: Image.asset(
+                        Assets.icons.icEdit.path,
+                        height: 24,
+                        width: 24,
+                        color: AppColors.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -192,14 +222,29 @@ class ProfileScreen extends ConsumerWidget {
                 // 2. Info Cards
                 Card(
                   color: AppColors.surface,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Column(
                     children: [
                       // Email Display
                       ListTile(
-                        leading: const Icon(Icons.email_outlined, color: AppColors.primary),
-                        title: const CustomTextWidget(text: 'Email', fontSize: 12, color: AppColors.textSecondary),
-                        subtitle: CustomTextWidget(text: profile.email, fontSize: 15, fontWeight: FontWeight.w600),
+                        leading: Image.asset(
+                          Assets.icons.icMail.path,
+                          width: 24,
+                          height: 24,
+                          color: AppColors.buttonBackground,
+                        ),
+                        title: const CustomTextWidget(
+                          text: 'Email',
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                        subtitle: CustomTextWidget(
+                          text: profile.email,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const Divider(height: 1),
 
@@ -207,19 +252,27 @@ class ProfileScreen extends ConsumerWidget {
                       SwitchListTile(
                         value: profile.isOnline,
                         activeColor: AppColors.primary,
-                        title: const CustomTextWidget(text: 'Online Status', fontSize: 15, fontWeight: FontWeight.w600),
+                        title: const CustomTextWidget(
+                          text: 'Online Status',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
                         subtitle: CustomTextWidget(
-                          text: profile.isOnline ? 'Visible as Online' : 'Appears Offline',
+                          text: profile.isOnline
+                              ? 'Visible as Online'
+                              : 'Appears Offline',
                           fontSize: 12,
                           color: AppColors.textSecondary,
                         ),
                         secondary: Icon(
                           Icons.circle,
                           color: profile.isOnline ? Colors.green : Colors.grey,
-                          size: 16,
+                          size: 24,
                         ),
                         onChanged: (val) {
-                          ref.read(profileControllerProvider.notifier).toggleOnlineStatus(val);
+                          ref
+                              .read(profileControllerProvider.notifier)
+                              .toggleOnlineStatus(val);
                         },
                       ),
                     ],
@@ -230,19 +283,36 @@ class ProfileScreen extends ConsumerWidget {
                 // 3. App Settings Section
                 Card(
                   color: AppColors.surface,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Column(
                     children: [
                       ListTile(
-                        leading: const Icon(Icons.notifications_none_outlined, color: AppColors.iconSecondary),
-                        title: const CustomTextWidget(text: 'Notifications', fontSize: 15),
+                        leading: Image.asset(
+                          Assets.icons.icNotification.path,
+                          height: 24,
+                          width: 24,
+                        ),
+                        title: const CustomTextWidget(
+                          text: 'Notifications',
+                          fontSize: 15,
+                        ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {},
                       ),
                       const Divider(height: 1),
                       ListTile(
-                        leading: const Icon(Icons.lock_outline, color: AppColors.iconSecondary),
-                        title: const CustomTextWidget(text: 'Privacy & Security', fontSize: 15),
+                        leading: Image.asset(
+                          Assets.icons.icLock.path,
+                          height: 24,
+                          width: 24,
+                          color: AppColors.black,
+                        ),
+                        title: const CustomTextWidget(
+                          text: 'Privacy & Security',
+                          fontSize: 15,
+                        ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {},
                       ),
@@ -252,25 +322,39 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
 
                 // 4. Logout Button
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    icon: const Icon(Icons.logout, color: Colors.red),
-                    label: const CustomTextWidget(
-                      text: 'Log Out',
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    onPressed: () {
-                      ref.read(profileControllerProvider.notifier).signOut();
-                    },
-                  ),
+                CustomButton(
+                  text: isLoggingOut ? 'Logging out...' : 'Log Out',
+                  onPressed: isLoggingOut
+                      ? null
+                      : () async {
+                          await ref
+                              .read(profileControllerProvider.notifier)
+                              .signOut();
+
+                          final signOutState = ref.read(
+                            profileControllerProvider,
+                          );
+                          if (context.mounted && !signOutState.hasError) {
+                            context.go(RouteNames.login);
+                          }
+                        },
+                  icon: Assets.icons.icLogOut.path,
+                  textColor: AppColors.white,
+                  backgroundColor: AppColors.neutralRed,
+                  iconColor: AppColors.white,
+                  spacing: 12,
+                  buttonWidth: double.infinity,
+
+                  child: isLoggingOut
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : null,
                 ),
               ],
             ),

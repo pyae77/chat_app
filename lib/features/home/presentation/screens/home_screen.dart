@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_chat_app/core/utils/ui_helpers.dart';
 import 'package:flutter_chat_app/features/chat/presentation/screens/chats_tab_contents.dart';
 import 'package:flutter_chat_app/features/home/presentation/screens/notification_tab_contents.dart';
-import 'package:flutter_chat_app/features/home/presentation/screens/online_tab_contents.dart';
+import 'package:flutter_chat_app/features/online/presentation/screens/online_tab_contents.dart';
 import 'package:flutter_chat_app/features/people/presentation/screens/people_tab_contents.dart';
 import 'package:flutter_chat_app/gen/assets.gen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chat_app/core/theme/app_colors.dart';
 import 'package:flutter_chat_app/presentation/widgets/custom_text_widget.dart';
-import 'package:flutter_chat_app/core/services/user_presence_service.dart'; 
 import '../providers/home_providers.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -19,25 +18,10 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
- 
-  final _presenceService = UserPresenceService();
-
-  @override
-  void initState() {
-    super.initState();
-    _presenceService.initialize(); 
-  }
-
-  @override
-  void dispose() {
-    _presenceService.dispose(); 
-    super.dispose();
-  }
-
   static const List<Widget> _tabScreens = [
     ChatsTabContent(),
     PeopleTabContent(),
-    OnlineTabContent(),
+    OnlineUsersTabContent(),
     NotificationTabContent(),
   ];
 
@@ -48,16 +32,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      
+
       body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 16.0),
-            child: IndexedStack(
-              index: currentIndex,
-              children: _tabScreens,
-            ),
-          ),
-        ),
+        child: IndexedStack(index: currentIndex, children: _tabScreens),
+      ),
 
       // Bottom Navigation Bar
       bottomNavigationBar: BottomNavigationBar(
@@ -70,7 +48,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         backgroundColor: AppColors.surface,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.iconSecondary,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
         unselectedLabelStyle: const TextStyle(fontSize: 12),
         items: [
           // 1. Chats Tab
@@ -99,7 +80,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               width: 22,
               height: 22,
               child: Image.asset(
-                Assets.icons.icPeople.path, 
+                Assets.icons.icPeople.path,
                 color: AppColors.iconSecondary,
               ),
             ),
@@ -118,7 +99,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               width: 22,
               height: 22,
               child: Image.asset(
-                Assets.icons.icOnline.path, 
+                Assets.icons.icOnline.path,
                 color: AppColors.iconSecondary,
               ),
             ),
@@ -132,13 +113,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             label: 'Online',
           ),
-          
+
           BottomNavigationBarItem(
             icon: SizedBox(
               width: 22,
               height: 22,
               child: Image.asset(
-                Assets.icons.icNotification.path, 
+                Assets.icons.icNotification.path,
                 color: AppColors.iconSecondary,
               ),
             ),

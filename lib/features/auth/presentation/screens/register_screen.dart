@@ -1,5 +1,3 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_app/core/routes/route_names.dart';
 import 'package:flutter_chat_app/gen/assets.gen.dart';
@@ -19,8 +17,7 @@ class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  ConsumerState<RegisterScreen> createState() =>
-      _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
@@ -44,7 +41,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     if (!_formKey.currentState!.validate()) return;
 
-    ref.read(signUpControllerProvider.notifier).signUpWithEmail(
+    ref
+        .read(signUpControllerProvider.notifier)
+        .signUpWithEmail(
           name: _nameController.text.trim(),
           email: _emailController.text.trim(),
           password: _passwordController.text,
@@ -55,39 +54,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) {
     final signUpState = ref.watch(signUpControllerProvider);
 
-    ref.listen<AsyncValue<void>>(
-      signUpControllerProvider,
-      (previous, next) {
-        // Registration error
-        if (next.hasError && !next.isLoading) {
-          if (previous?.hasError == true &&
-              previous?.error == next.error) {
-            return;
-          }
-
-          UIHelpers.showSnackBar(
-            context,
-            next.error.toString(),
-            isError: true,
-          );
+    ref.listen<AsyncValue<void>>(signUpControllerProvider, (previous, next) {
+      // 1. Error handling
+      if (next.hasError && !next.isLoading) {
+        if (previous?.hasError == true && previous?.error == next.error) {
           return;
         }
+        UIHelpers.showSnackBar(context, next.error.toString(), isError: true);
+        return;
+      }
 
-        // Navigate only after a successful registration operation.
-        if (previous?.isLoading == true &&
-            next.hasValue &&
-            !next.isLoading &&
-            !next.hasError) {
-          UIHelpers.showSnackBar(
-            context,
-            'Account created successfully! Please sign in.',
-            isError: false,
-          );
-
-          context.go(RouteNames.login);
-        }
-      },
-    );
+      if (previous?.isLoading == true && next.hasValue && !next.isLoading) {
+        context.go(RouteNames.login);
+        UIHelpers.showSnackBar(
+          context,
+          'Account created successfully! Please sign in.',
+          isError: false,
+        );
+      }
+    });
 
     return GestureDetector(
       onTap: () => UIHelpers.hideKeyboard(context),
@@ -117,8 +102,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     const SizedBox(height: 8),
 
                     const CustomTextWidget(
-                      text:
-                          'Sign up to start connecting with your friends',
+                      text: 'Sign up to start connecting with your friends',
                       fontSize: 14,
                       color: AppColors.textSecondary,
                       textAlign: TextAlign.center,
@@ -135,10 +119,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         color: AppColors.iconSecondary,
                       ),
                       validator: (value) =>
-                          AppValidators.validateRequired(
-                        value,
-                        'full name',
-                      ),
+                          AppValidators.validateRequired(value, 'full name'),
                     ),
                     const SizedBox(height: 16),
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_app/core/routes/route_names.dart';
 import 'package:flutter_chat_app/core/theme/app_colors.dart';
-import 'package:flutter_chat_app/core/utils/ui_helpers.dart';
+import 'package:flutter_chat_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:flutter_chat_app/gen/assets.gen.dart';
 import 'package:flutter_chat_app/presentation/widgets/chat_user_tile.dart';
 import 'package:flutter_chat_app/presentation/widgets/custom_app_bar.dart';
@@ -16,14 +16,9 @@ class PeopleTabContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final peopleState = ref.watch(peopleProvider);
+    final usersState = ref.watch(peopleProvider);
+    final currentUserId = ref.watch(currentUserIdProvider) ?? '';
     final searchQuery = ref.watch(peopleSearchQueryProvider).toLowerCase();
-
-    final filteredUsers = peopleState.users.where((user) {
-      final nameMatch = user.name.toLowerCase().contains(searchQuery);
-      final emailMatch = user.email.toLowerCase().contains(searchQuery);
-      return nameMatch || emailMatch;
-    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,6 +32,9 @@ class PeopleTabContent extends ConsumerWidget {
             color: AppColors.accent,
           ),
           trailing: Assets.icons.icUser1.path,
+          trailingAction: () {
+            context.pushNamed(RouteNames.profileName);
+          },
         ),
 
         // 2. Search Bar
@@ -64,37 +62,114 @@ class PeopleTabContent extends ConsumerWidget {
 
         // 3. People List View with NotificationListener (No ScrollController needed!)
         Expanded(
-          child: peopleState.isLoading
+          child: usersState.isLoading && usersState.users.isEmpty
               ? const Center(child: CircularProgressIndicator())
-              : peopleState.errorMessage != null
-                  ? Center(child: CustomTextWidget(text: peopleState.errorMessage!, color: AppColors.error))
-                  : filteredUsers.isEmpty
-                      ? const Center(child: CustomTextWidget(text: 'No people found.'))
-                      : NotificationListener<ScrollNotification>(
-                          onNotification: (scrollInfo) {
-                            if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
-                              ref.read(peopleProvider.notifier).loadMorePeople();
-                            }
-                            return false;
-                          },
-                          child:  ListView.builder(
-                              itemCount: filteredUsers.length,
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              itemBuilder: (context, index) {
-                                final user = filteredUsers[index];
-                                
-                                return ChatUserTile(
-                                  user: user,
-                                  onTap: () {
-                                   context.pushNamed(
-                                    RouteNames.chatroomName,
-                                    extra: user, 
-                                  );
-                                  },
-                                );
-                              },
+              : usersState.errorMessage != null && usersState.users.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CustomTextWidget(
+                        text: usersState.errorMessage!,
+                        color: AppColors.error,
+                      ),
+                      TextButton(
+                        onPressed: () => ref
+                            .read(peopleProvider.notifier)
+                            .fetchInitialPeople(),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : Builder(
+                  builder: (context) {
+                    final filteredUsers = usersState.users.where((user) {
+                      final nameMatch = user.name.toLowerCase().contains(
+                        searchQuery,
+                      );
+                      final emailMatch = user.email.toLowerCase().contains(
+                        searchQuery,
+                      );
+                      return user.uid != currentUserId &&
+                          (nameMatch || emailMatch);
+                    }).toList();
+
+                    if (filteredUsers.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CustomTextWidget(
+                              text: searchQuery.isEmpty
+                                  ? 'No people found.'
+                                  : 'No matching people found.',
                             ),
+                            if (usersState.hasMore)
+                              TextButton(
+                                onPressed: () => ref
+                                    .read(peopleProvider.notifier)
+                                    .loadMore(),
+                                child: const Text('Load more'),
+                              ),
+                          ],
                         ),
+                      );
+                    }
+
+                    return NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        if (notification.metrics.maxScrollExtent == 0 ||
+                            notification.metrics.pixels >=
+                                notification.metrics.maxScrollExtent * 0.8) {
+                          ref.read(peopleProvider.notifier).loadMore();
+                        }
+                        return false;
+                      },
+                      child: ListView.builder(
+                        itemCount:
+                            filteredUsers.length +
+                            (usersState.hasMore ||
+                                    usersState.isLoadingMore ||
+                                    usersState.errorMessage != null
+                                ? 1
+                                : 0),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemBuilder: (context, index) {
+                          if (index >= filteredUsers.length) {
+                            if (usersState.isLoadingMore) {
+                              return const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+                            return TextButton(
+                              onPressed: () =>
+                                  ref.read(peopleProvider.notifier).loadMore(),
+                              child: Text(
+                                usersState.errorMessage ?? 'Load more users',
+                              ),
+                            );
+                          }
+
+                          final user = filteredUsers[index];
+                          return ChatUserTile(
+                            user: user,
+                            onTap: () {
+                              context.pushNamed(
+                                RouteNames.chatroomName,
+                                extra: user,
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
         ),
       ],
     );

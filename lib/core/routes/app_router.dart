@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_app/core/entities/chat_user_entity.dart';
+import 'package:flutter_chat_app/core/routes/auth_redirect_guard.dart';
 import 'package:flutter_chat_app/core/routes/route_names.dart';
 import 'package:flutter_chat_app/features/auth/presentation/screens/login_screen.dart';
 import 'package:flutter_chat_app/features/auth/presentation/screens/register_screen.dart';
@@ -10,7 +11,7 @@ import 'package:flutter_chat_app/features/profile/presentation/screens/profile_s
 import 'package:flutter_chat_app/presentation/screens/splash_screen.dart';
 import 'package:flutter_chat_app/presentation/widgets/custom_text_widget.dart';
 import 'package:go_router/go_router.dart';
-import 'dart:async'; 
+import 'dart:async';
 
 class AppRouter {
   const AppRouter._();
@@ -18,8 +19,10 @@ class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation: RouteNames.splash,
     // refresh go router when state change
-    refreshListenable: GoRouterRefreshStream(FirebaseAuth.instance.authStateChanges()),
-    
+    refreshListenable: GoRouterRefreshStream(
+      FirebaseAuth.instance.authStateChanges(),
+    ),
+
     routes: <RouteBase>[
       GoRoute(
         path: RouteNames.splash,
@@ -41,12 +44,12 @@ class AppRouter {
         name: RouteNames.homeName,
         builder: (context, state) => const HomeScreen(),
       ),
-        GoRoute(
+      GoRoute(
         path: RouteNames.chatroom,
         name: RouteNames.chatroomName,
         builder: (context, state) {
           final targetUser = state.extra as ChatUserEntity;
-    
+
           return ChatRoomScreen(targetUser: targetUser);
         },
       ),
@@ -54,14 +57,23 @@ class AppRouter {
         path: RouteNames.profile,
         name: RouteNames.profileName,
         builder: (context, state) {
-         return const ProfileScreen();
+          return const ProfileScreen();
         },
       ),
     ],
     redirect: (context, state) {
+      if (AuthRedirectGuard.isRegistrationInProgress) {
+        return null;
+      }
+
       final user = FirebaseAuth.instance.currentUser;
-      final isAuthRoute = state.matchedLocation == RouteNames.login ||
-          state.matchedLocation == RouteNames.register ||
+
+      if (state.matchedLocation == RouteNames.register) {
+        return null;
+      }
+
+      final isAuthRoute =
+          state.matchedLocation == RouteNames.login ||
           state.matchedLocation == RouteNames.splash;
 
       // if user already logged in ,go to home
@@ -74,13 +86,11 @@ class AppRouter {
         return RouteNames.login;
       }
 
-      return null; 
+      return null;
     },
     errorBuilder: (context, state) {
       return const Scaffold(
-        body: Center(
-          child: CustomTextWidget(text: 'Page Not Found'),
-        ),
+        body: Center(child: CustomTextWidget(text: 'Page Not Found')),
       );
     },
   );
@@ -90,9 +100,7 @@ class AppRouter {
 class GoRouterRefreshStream extends ChangeNotifier {
   GoRouterRefreshStream(Stream<dynamic> stream) {
     notifyListeners();
-    _subscription = stream.listen(
-      (_) => notifyListeners(),
-    );
+    _subscription = stream.listen((_) => notifyListeners());
   }
 
   late final StreamSubscription<dynamic> _subscription;

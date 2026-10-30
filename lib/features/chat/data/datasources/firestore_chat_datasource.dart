@@ -1,67 +1,61 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_chat_app/core/entities/paginated_result.dart';
 import 'package:flutter_chat_app/core/models/chat_user_model.dart';
 
 abstract class FirestoreChatDataSource {
-  Stream<List<ChatUserModel>> getRecentChatUsers(String currentUserId);
+  Future<PaginatedResult<ChatUserModel>> getRecentChatUsers({
+    required String currentUserId,
+    DocumentSnapshot<Map<String, dynamic>>? lastDocument,
+    int limit = 10,
+  });
 }
 
 class FirestoreChatDataSourceImpl implements FirestoreChatDataSource {
   final FirebaseFirestore _firestore;
 
   FirestoreChatDataSourceImpl({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
-  Stream<List<ChatUserModel>> getRecentChatUsers(String currentUserId) {
-   
-    return _firestore
+  Future<PaginatedResult<ChatUserModel>> getRecentChatUsers({
+    required String currentUserId,
+    DocumentSnapshot<Map<String, dynamic>>? lastDocument,
+    int limit = 10,
+  }) async {
+    Query<Map<String, dynamic>> query = _firestore
         .collection('chat_rooms')
         .where('participants', arrayContains: currentUserId)
-        .snapshots()
-        .asyncMap((snapshot) async {
-      
-      final List<Map<String, dynamic>> roomDataList = [];
+        .orderBy('lastMessageTimestamp', descending: true)
+        .limit(limit);
+    if (lastDocument != null) {
+      query = query.startAfterDocument(lastDocument);
+    }
 
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final List<dynamic> participants = data['participants'] ?? [];
-    
-        final otherId = participants.firstWhere(
-          (id) => id != currentUserId,
-          orElse: () => '',
-        );
+    final snapshot = await query.get();
+    final otherUserIds = snapshot.docs
+        .map((doc) {
+          final participants =
+              doc.data()['participants'] as List<dynamic>? ?? [];
+          return participants.whereType<String>().firstWhere(
+            (id) => id != currentUserId,
+            orElse: () => '',
+          );
+        })
+        .where((id) => id.isNotEmpty)
+        .toList();
 
-        if (otherId.isNotEmpty) {
-          roomDataList.add({
-            'otherId': otherId,
-            'timestamp': (data['lastMessageTimestamp'] as Timestamp?)?.millisecondsSinceEpoch ?? 0,
-          });
-        }
-      }
+    final userDocs = await Future.wait(
+      otherUserIds.map((id) => _firestore.collection('users').doc(id).get()),
+    );
+    final users = userDocs
+        .where((doc) => doc.exists && doc.data() != null)
+        .map((doc) => ChatUserModel.fromFirestore(doc.data()!, doc.id))
+        .toList();
 
-      if (roomDataList.isEmpty) return [];
-      roomDataList.sort((a, b) => (b['timestamp'] as int).compareTo(a['timestamp'] as int));
-
-      final List<String> orderedOtherUserIds = roomDataList.map((e) => e['otherId'] as String).toList();
-
-      final usersSnapshot = await _firestore
-          .collection('users')
-          .where(FieldPath.documentId, whereIn: orderedOtherUserIds)
-          .get();
-
-      final usersMap = {
-        for (var doc in usersSnapshot.docs)
-          doc.id: ChatUserModel.fromFirestore(doc.data(), doc.id)
-      };
-
-      final List<ChatUserModel> sortedUsers = [];
-      for (var id in orderedOtherUserIds) {
-        if (usersMap.containsKey(id)) {
-          sortedUsers.add(usersMap[id]!);
-        }
-      }
-
-      return sortedUsers;
-    });
+    return PaginatedResult(
+      items: users,
+      cursor: snapshot.docs.isEmpty ? lastDocument : snapshot.docs.last,
+      hasMore: snapshot.docs.length == limit,
+    );
   }
 }

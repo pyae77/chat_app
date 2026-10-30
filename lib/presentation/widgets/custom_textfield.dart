@@ -11,6 +11,7 @@ class CustomTextField extends StatelessWidget {
   final Widget? suffixIcon;
   final Color? fillColor;
   final double radius;
+  final int? maxlines;
 
   const CustomTextField({
     super.key,
@@ -20,19 +21,22 @@ class CustomTextField extends StatelessWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.fillColor,
-    this.radius = 12.0,
+    this.radius = 12.0, 
+    this.maxlines,
   });
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      maxLines: maxlines??1,
       onChanged: onChanged,
       textAlignVertical: TextAlignVertical.center,
       style: TextStyle(
         color: AppColors.black,
         fontFamily: Assets.fonts.fredokaMedium,
         fontSize: 15,
+        
       ),
       decoration: InputDecoration(
       
@@ -44,6 +48,7 @@ class CustomTextField extends StatelessWidget {
         ),
         prefixIcon: prefixIcon,
         suffixIcon: suffixIcon,
+        
         prefixIconConstraints: const BoxConstraints(
           minWidth: 40,
           minHeight: 40,

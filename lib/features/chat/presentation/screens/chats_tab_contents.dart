@@ -16,19 +16,24 @@ class ChatsTabContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chatUsersAsync = ref.watch(chatUsersStreamProvider);
+    final chatUsersState = ref.watch(chatUsersProvider);
     final searchQuery = ref.watch(searchQueryProvider).toLowerCase();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         CustomAppBar(
-         middleWidget: CustomTextWidget(text: 'Chats',fontSize: 24,fontWeight: FontWeight.w600,color: AppColors.accent,),
-         trailing: Assets.icons.icUser1.path,
-         trailingAction: () {
-           
-           context.pushNamed(RouteNames.profileName);
-         },
+          
+          middleWidget: CustomTextWidget(
+            text: 'Chats',
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
+            color: AppColors.accent,
+          ),
+          trailing: Assets.icons.icUser1.path,
+          trailingAction: () {
+            context.pushNamed(RouteNames.profileName);
+          },
         ),
         // Search Bar Section
         Padding(
@@ -55,49 +60,118 @@ class ChatsTabContent extends ConsumerWidget {
 
         // Chat List View
         Expanded(
-          child: chatUsersAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, stackTrace) => Center(
-              child: CustomTextWidget(text: 'Error: $error', color: AppColors.error),
-            ),
-            data: (eitherResult) {
-              return eitherResult.fold(
-                ifLeft: (failure) => Center(child: CustomTextWidget(text: failure.message, color: AppColors.error)),
-                ifRight: (users) {
-                  final filteredUsers = users.where((user) {
-              final nameMatch = user.name.toLowerCase().contains(searchQuery);
-              final emailMatch = user.email.toLowerCase().contains(searchQuery);
-              return nameMatch || emailMatch;
-            }).toList();
-
-                  if (filteredUsers.isEmpty) {
-                    return const Center(child: CustomTextWidget(text: 'No conversations found.'));
-                  }
-
-                  return ListView.builder(
-                    itemCount: filteredUsers.length,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemBuilder: (context, index) {
-                      final user = filteredUsers[index];
-                      return ChatUserTile(
-                        user: user,
-                        onTap: () {
-                          context.pushNamed(
-                          RouteNames.chatroomName,
-                          extra: user, 
-                        );
-                        },
+          child: chatUsersState.isLoading && chatUsersState.users.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : chatUsersState.errorMessage != null &&
+                    chatUsersState.users.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CustomTextWidget(
+                        text: chatUsersState.errorMessage!,
+                        color: AppColors.error,
+                      ),
+                      TextButton(
+                        onPressed: () => ref
+                            .read(chatUsersProvider.notifier)
+                            .fetchInitialChats(),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : Builder(
+                  builder: (context) {
+                    final filteredUsers = chatUsersState.users.where((user) {
+                      final nameMatch = user.name.toLowerCase().contains(
+                        searchQuery,
                       );
-                    },
-                  );
-                },
-              );
-            },
-          ),
+                      final emailMatch = user.email.toLowerCase().contains(
+                        searchQuery,
+                      );
+                      return nameMatch || emailMatch;
+                    }).toList();
+
+                    if (filteredUsers.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CustomTextWidget(
+                              text: searchQuery.isEmpty
+                                  ? 'No conversations found.'
+                                  : 'No matching conversations found.',
+                            ),
+                            if (chatUsersState.hasMore)
+                              TextButton(
+                                onPressed: () => ref
+                                    .read(chatUsersProvider.notifier)
+                                    .loadMore(),
+                                child: const Text('Load more'),
+                              ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        if (notification.metrics.maxScrollExtent == 0 ||
+                            notification.metrics.pixels >=
+                                notification.metrics.maxScrollExtent * 0.8) {
+                          ref.read(chatUsersProvider.notifier).loadMore();
+                        }
+                        return false;
+                      },
+                      child: ListView.builder(
+                        itemCount:
+                            filteredUsers.length +
+                            (chatUsersState.hasMore ||
+                                    chatUsersState.isLoadingMore ||
+                                    chatUsersState.errorMessage != null
+                                ? 1
+                                : 0),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemBuilder: (context, index) {
+                          if (index >= filteredUsers.length) {
+                            if (chatUsersState.isLoadingMore) {
+                              return const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+                            return TextButton(
+                              onPressed: () => ref
+                                  .read(chatUsersProvider.notifier)
+                                  .loadMore(),
+                              child: Text(
+                                chatUsersState.errorMessage ??
+                                    'Load more conversations',
+                              ),
+                            );
+                          }
+
+                          final user = filteredUsers[index];
+                          return ChatUserTile(
+                            user: user,
+                            onTap: () {
+                              context.pushNamed(
+                                RouteNames.chatroomName,
+                                extra: user,
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
         ),
       ],
     );
   }
 }
-
-

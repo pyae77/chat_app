@@ -1,39 +1,57 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_chat_app/core/models/chat_user_model.dart'; 
+import 'package:flutter_chat_app/core/models/chat_user_model.dart';
 
 abstract class FirestorePeopleDataSource {
-  Future<List<ChatUserModel>> getPeople({
+  Future<QuerySnapshot<Map<String, dynamic>>> getPeople({
     required String currentUserId,
-    DocumentSnapshot? lastDocument,
+    DocumentSnapshot<Map<String, dynamic>>? lastDocument,
     int limit = 10,
-    String searchQuery = '',
+    bool onlineOnly = false,
   });
+
+  Stream<ChatUserModel?> getUserPresenceStream(String userId);
 }
 
 class FirestorePeopleDataSourceImpl implements FirestorePeopleDataSource {
   final FirebaseFirestore _firestore;
 
   FirestorePeopleDataSourceImpl({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
-  Future<List<ChatUserModel>> getPeople({
+  Future<QuerySnapshot<Map<String, dynamic>>> getPeople({
     required String currentUserId,
-    DocumentSnapshot? lastDocument,
+    DocumentSnapshot<Map<String, dynamic>>? lastDocument,
     int limit = 10,
-    String searchQuery = '',
+    bool onlineOnly = false,
   }) async {
-    Query query = _firestore.collection('users').orderBy('name').limit(limit);
+    Query<Map<String, dynamic>> query = _firestore.collection('users');
+
+    if (onlineOnly) {
+      query = query.where('isOnline', isEqualTo: true);
+    } else {
+      query = query.orderBy('name');
+    }
+
+    query = query.limit(limit);
 
     if (lastDocument != null) {
       query = query.startAfterDocument(lastDocument);
     }
 
-    final querySnapshot = await query.get();
+    return query.get();
+  }
 
-    return querySnapshot.docs
-        .where((doc) => doc.id != currentUserId) 
-        .map((doc) => ChatUserModel.fromFirestore(doc.data() as Map<String, dynamic>, doc.id))
-        .toList();
+  @override
+  Stream<ChatUserModel?> getUserPresenceStream(String userId) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.exists
+              ? ChatUserModel.fromFirestore(snapshot.data()!, snapshot.id)
+              : null,
+        );
   }
 }

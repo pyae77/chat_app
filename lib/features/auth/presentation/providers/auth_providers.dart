@@ -1,4 +1,4 @@
-
+import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 // Domain
+import '../../../../core/routes/auth_redirect_guard.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/usecases/sign_in_usecase.dart';
 import '../../domain/usecases/sign_up_usecase.dart';
@@ -37,16 +38,16 @@ final googleSignInProvider = Provider<GoogleSignIn>((ref) {
 // 2. DATA SOURCE PROVIDERS
 // =====================================================
 
-final firebaseAuthDataSourceProvider =
-    Provider<FirebaseAuthDataSource>((ref) {
+final firebaseAuthDataSourceProvider = Provider<FirebaseAuthDataSource>((ref) {
   return FirebaseAuthDataSource(
     auth: ref.watch(firebaseAuthProvider),
     googleSignIn: ref.watch(googleSignInProvider),
   );
 });
 
-final firestoreUserDataSourceProvider =
-    Provider<FirestoreUserDataSource>((ref) {
+final firestoreUserDataSourceProvider = Provider<FirestoreUserDataSource>((
+  ref,
+) {
   return FirestoreUserDataSource(
     firestore: ref.watch(firebaseFirestoreProvider),
   );
@@ -68,28 +69,19 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 // =====================================================
 
 final signInUseCaseProvider = Provider<SignInUseCase>((ref) {
-  return SignInUseCase(
-    ref.watch(authRepositoryProvider),
-  );
+  return SignInUseCase(ref.watch(authRepositoryProvider));
 });
 
 final signUpUseCaseProvider = Provider<SignUpUseCase>((ref) {
-  return SignUpUseCase(
-    ref.watch(authRepositoryProvider),
-  );
+  return SignUpUseCase(ref.watch(authRepositoryProvider));
 });
 
-final googleSignInUseCaseProvider =
-    Provider<GoogleSignInUseCase>((ref) {
-  return GoogleSignInUseCase(
-    ref.watch(authRepositoryProvider),
-  );
+final googleSignInUseCaseProvider = Provider<GoogleSignInUseCase>((ref) {
+  return GoogleSignInUseCase(ref.watch(authRepositoryProvider));
 });
 
 final signOutUseCaseProvider = Provider<SignOutUseCase>((ref) {
-  return SignOutUseCase(
-    ref.watch(authRepositoryProvider),
-  );
+  return SignOutUseCase(ref.watch(authRepositoryProvider));
 });
 
 // =====================================================
@@ -104,14 +96,13 @@ final authStateProvider = StreamProvider<User?>((ref) {
 // 6. EMAIL AUTH CONTROLLER
 // =====================================================
 
-final authControllerProvider =
-    AsyncNotifierProvider<AuthController, void>(
+final authControllerProvider = AsyncNotifierProvider<AuthController, void>(
   AuthController.new,
 );
 
 class AuthController extends AsyncNotifier<void> {
   @override
-  Future<void> build() async {}
+  FutureOr<void> build() => null;
 
   Future<void> signInWithEmail({
     required String email,
@@ -141,13 +132,11 @@ class AuthController extends AsyncNotifier<void> {
 // =====================================================
 
 final googleAuthControllerProvider =
-    AsyncNotifierProvider<GoogleAuthController, void>(
-  GoogleAuthController.new,
-);
+    AsyncNotifierProvider<GoogleAuthController, void>(GoogleAuthController.new);
 
 class GoogleAuthController extends AsyncNotifier<void> {
   @override
-  Future<void> build() async {}
+  FutureOr<void> build() => null;
 
   Future<void> signInWithGoogle() async {
     state = const AsyncLoading();
@@ -162,14 +151,13 @@ class GoogleAuthController extends AsyncNotifier<void> {
 // 8. SIGN UP CONTROLLER
 // =====================================================
 
-final signUpControllerProvider =
-    AsyncNotifierProvider<SignUpController, void>(
+final signUpControllerProvider = AsyncNotifierProvider<SignUpController, void>(
   SignUpController.new,
 );
 
 class SignUpController extends AsyncNotifier<void> {
   @override
-  Future<void> build() async {}
+  FutureOr<void> build() => null;
 
   Future<void> signUpWithEmail({
     required String name,
@@ -178,19 +166,27 @@ class SignUpController extends AsyncNotifier<void> {
   }) async {
     state = const AsyncLoading();
 
-    state = await AsyncValue.guard(() async {
-      await ref.read(signUpUseCaseProvider)(
-        name: name.trim(),
-        email: email.trim(),
-        password: password,
-      );
-    });
+    AuthRedirectGuard.isRegistrationInProgress = true;
+    late final AsyncValue<void> result;
+    try {
+      result = await AsyncValue.guard(() async {
+        await ref.read(signUpUseCaseProvider)(
+          name: name.trim(),
+          email: email.trim(),
+          password: password,
+        );
+      });
+    } finally {
+      AuthRedirectGuard.isRegistrationInProgress = false;
+    }
+
+    state = result;
   }
-
- final authStateProvider = StreamProvider<User?>((ref) {
-  return FirebaseAuth.instance.authStateChanges();
-});
-
 }
 
-
+final currentUserIdProvider = Provider<String?>((ref) {
+  final authState = ref.watch(
+    authStateProvider,
+  ); // authStateProvider = StreamProvider<User?>
+  return authState.value?.uid;
+});
