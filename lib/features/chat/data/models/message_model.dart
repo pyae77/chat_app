@@ -6,9 +6,14 @@ class MessageModel {
   final String senderId;
   final String receiverId;
   final String? message;
-  final String? imageUrl; 
+  final String? imageUrl;
   final DateTime timestamp;
   final bool isRead;
+
+  final String? replyToMessageId;
+  final String? replyToSenderId;
+  final String? replyToMessage;
+  final String? replyToImageUrl;
 
   MessageModel({
     required this.id,
@@ -18,17 +23,29 @@ class MessageModel {
     this.imageUrl,
     required this.timestamp,
     this.isRead = false,
+    this.replyToMessageId,
+    this.replyToSenderId,
+    this.replyToMessage,
+    this.replyToImageUrl,
   });
 
-  factory MessageModel.fromFirestore(Map<String, dynamic> json, String docId) {
+  factory MessageModel.fromFirestore(
+    Map<String, dynamic> json,
+    String docId,
+  ) {
     return MessageModel(
       id: docId,
       senderId: json['senderId'] ?? '',
       receiverId: json['receiverId'] ?? '',
       message: json['message'],
       imageUrl: json['imageUrl'],
-      timestamp: (json['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      timestamp:
+          (json['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isRead: json['isRead'] ?? false,
+      replyToMessageId: json['replyToMessageId'],
+      replyToSenderId: json['replyToSenderId'],
+      replyToMessage: json['replyToMessage'],
+      replyToImageUrl: json['replyToImageUrl'],
     );
   }
 
@@ -37,9 +54,13 @@ class MessageModel {
       'senderId': senderId,
       'receiverId': receiverId,
       'message': message,
-      'imageUrl': imageUrl, 
+      'imageUrl': imageUrl,
       'timestamp': FieldValue.serverTimestamp(),
       'isRead': isRead,
+      'replyToMessageId': replyToMessageId,
+      'replyToSenderId': replyToSenderId,
+      'replyToMessage': replyToMessage,
+      'replyToImageUrl': replyToImageUrl,
     };
   }
 
@@ -48,10 +69,14 @@ class MessageModel {
       id: id,
       senderId: senderId,
       receiverId: receiverId,
-      message: message??'',
+      message: message ?? '',
       imageUrl: imageUrl,
       timestamp: timestamp,
       isRead: isRead,
+      replyToMessageId: replyToMessageId,
+      replyToSenderId: replyToSenderId,
+      replyToMessage: replyToMessage,
+      replyToImageUrl: replyToImageUrl,
     );
   }
 }

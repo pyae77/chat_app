@@ -8,6 +8,7 @@ abstract class FirestoreChatRoomDataSource {
   Stream<List<MessageModel>> getMessagesStream(String chatRoomId);
   Future<void> sendMessage(String chatRoomId, MessageModel message);
   Future<void> sendImageMessage(String chatRoomId, MessageModel messageModel, String imagePath);
+  Future<void> markMessagesAsRead(String chatRoomId, String currentUserId);
 }
 
 class FirestoreChatRoomDataSourceImpl implements FirestoreChatRoomDataSource {
@@ -49,7 +50,11 @@ class FirestoreChatRoomDataSourceImpl implements FirestoreChatRoomDataSource {
     batch.set(
       roomRef,
       {
-        'lastMessage': message.message,
+        'lastMessage': message.imageUrl != null
+        ? (message.message?.isNotEmpty == true
+        ? message.message
+        : 'Photo')
+    : message.message,
         'lastMessageTimestamp': FieldValue.serverTimestamp(),
         'participants': [message.senderId, message.receiverId],
       },
@@ -60,31 +65,58 @@ class FirestoreChatRoomDataSourceImpl implements FirestoreChatRoomDataSource {
   }
 
 @override
-Future<void> sendImageMessage(String chatRoomId, MessageModel messageModel, String imagePath) async {
-
+Future<void> sendImageMessage(
+  String chatRoomId,
+  MessageModel messageModel,
+  String imagePath,
+) async {
   final file = File(imagePath);
   final fileName = DateTime.now().millisecondsSinceEpoch.toString();
+
   final ref = FirebaseStorage.instance
       .ref()
       .child('chat_images')
       .child(chatRoomId)
       .child('$fileName.jpg');
 
- 
   final uploadTask = await ref.putFile(file);
   final downloadUrl = await uploadTask.ref.getDownloadURL();
-
 
   final imageMessage = MessageModel(
     id: messageModel.id,
     senderId: messageModel.senderId,
     receiverId: messageModel.receiverId,
-    message: "Photo", 
-    imageUrl: downloadUrl, 
+    message: messageModel.message ?? '',
+    imageUrl: downloadUrl,
     timestamp: messageModel.timestamp,
     isRead: messageModel.isRead,
+    replyToMessageId: messageModel.replyToMessageId,
+    replyToSenderId: messageModel.replyToSenderId,
+    replyToMessage: messageModel.replyToMessage,
+    replyToImageUrl: messageModel.replyToImageUrl,
   );
 
   await sendMessage(chatRoomId, imageMessage);
 }
+
+@override
+  Future<void> markMessagesAsRead(String chatRoomId, String currentUserId) async {
+    final unreadMessages = await _firestore
+        .collection('chat_rooms')
+        .doc(chatRoomId)
+        .collection('messages')
+        .where('receiverId', isEqualTo: currentUserId)
+        .where('isRead', isEqualTo: false)
+        .get();
+
+    if (unreadMessages.docs.isEmpty) return;
+
+    final batch = _firestore.batch();
+    for (var doc in unreadMessages.docs) {
+      batch.update(doc.reference, {'isRead': true});
+    }
+    await batch.commit();
+  }
+
+  
 }
