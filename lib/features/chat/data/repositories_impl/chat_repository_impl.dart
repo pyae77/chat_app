@@ -37,4 +37,28 @@ class ChatRepositoryImpl implements ChatRepository {
       return Left(UserFetchFailure(e.toString()));
     }
   }
+
+  @override
+Stream<Either<AppFailure, PaginatedResult<ChatUserEntity>>>
+    watchRecentChatUsers({
+  required String currentUserId,
+  int limit = 10,
+}) async* {
+  try {
+    await for (final page in _datasource.watchRecentChatUsers(
+      currentUserId: currentUserId,
+      limit: limit,
+    )) {
+      yield Right(
+        PaginatedResult<ChatUserEntity>(
+          items: page.items.map((model) => model.toEntity()).toList(),
+          cursor: page.cursor,
+          hasMore: page.hasMore,
+        ),
+      );
+    }
+  } catch (e) {
+    yield Left(UserFetchFailure(e.toString()));
+  }
+}
 }

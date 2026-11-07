@@ -7,11 +7,14 @@ class MessageEntity {
   final bool isRead;
   final String? imageUrl;
 
-  // Reply information
   final String? replyToMessageId;
   final String? replyToSenderId;
   final String? replyToMessage;
   final String? replyToImageUrl;
+  
+
+  // Message Reactions
+  final Map<String, String> reactions;
 
   const MessageEntity({
     required this.id,
@@ -25,6 +28,7 @@ class MessageEntity {
     this.replyToSenderId,
     this.replyToMessage,
     this.replyToImageUrl,
+    this.reactions = const {},
   });
 
   bool isMe(String currentUserId) => senderId == currentUserId;

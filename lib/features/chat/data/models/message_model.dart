@@ -14,6 +14,8 @@ class MessageModel {
   final String? replyToSenderId;
   final String? replyToMessage;
   final String? replyToImageUrl;
+  
+  final Map<String, String> reactions;
 
   MessageModel({
     required this.id,
@@ -26,7 +28,8 @@ class MessageModel {
     this.replyToMessageId,
     this.replyToSenderId,
     this.replyToMessage,
-    this.replyToImageUrl,
+    this.replyToImageUrl, 
+    this.reactions = const {},
   });
 
   factory MessageModel.fromFirestore(
@@ -46,6 +49,10 @@ class MessageModel {
       replyToSenderId: json['replyToSenderId'],
       replyToMessage: json['replyToMessage'],
       replyToImageUrl: json['replyToImageUrl'],
+
+      reactions: Map<String, String>.from(
+      json['reactions'] ?? {},
+),
     );
   }
 
@@ -61,6 +68,7 @@ class MessageModel {
       'replyToSenderId': replyToSenderId,
       'replyToMessage': replyToMessage,
       'replyToImageUrl': replyToImageUrl,
+      'reactions': reactions,
     };
   }
 
@@ -77,6 +85,7 @@ class MessageModel {
       replyToSenderId: replyToSenderId,
       replyToMessage: replyToMessage,
       replyToImageUrl: replyToImageUrl,
+      reactions: reactions,
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_chat_app/core/entities/chat_user_entity.dart';
 import 'package:flutter_chat_app/features/auth/presentation/providers/auth_providers.dart';
@@ -64,10 +66,17 @@ class ChatUsersNotifier extends StateNotifier<ChatUsersState> {
   final GetChatUsersUseCase _getChatUsersUseCase;
   final String _currentUserId;
 
+  StreamSubscription? _subscription;
+
+  bool _initialCursorSet = false;
+
   ChatUsersNotifier(this._getChatUsersUseCase, this._currentUserId)
-    : super(const ChatUsersState()) {
+      : super(const ChatUsersState()) {
     if (_currentUserId.isEmpty) {
-      state = state.copyWith(isLoading: false, hasMore: false);
+      state = state.copyWith(
+        isLoading: false,
+        hasMore: false,
+      );
     } else {
       fetchInitialChats();
     }
@@ -77,23 +86,59 @@ class ChatUsersNotifier extends StateNotifier<ChatUsersState> {
 
   Future<void> fetchInitialChats() async {
     if (_currentUserId.isEmpty) return;
-    state = state.copyWith(isLoading: true, errorMessage: null);
-    final result = await _getChatUsersUseCase.execute(
-      currentUserId: _currentUserId,
-      limit: _limit,
-    );
-    if (!mounted) return;
 
-    result.fold(
-      ifLeft: (failure) {
-        state = state.copyWith(isLoading: false, errorMessage: failure.message);
+    await _subscription?.cancel();
+
+    _initialCursorSet = false;
+    state = const ChatUsersState();
+
+    _subscription = _getChatUsersUseCase
+        .watch(
+          currentUserId: _currentUserId,
+          limit: _limit,
+        )
+        .listen(
+      (result) {
+        if (!mounted) return;
+
+        result.fold(
+          ifLeft: (failure) {
+            state = state.copyWith(
+              isLoading: false,
+              errorMessage: failure.message,
+            );
+          },
+          ifRight: (page) {
+            // Keep previously loaded users and update the live first page.
+            final updatedUsers = [
+              ...page.items,
+              ...state.users.where(
+                (oldUser) => !page.items.any(
+                  (newUser) => newUser.uid == oldUser.uid,
+                ),
+              ),
+            ];
+
+            state = state.copyWith(
+              isLoading: false,
+              users: updatedUsers,
+              lastDocument: _initialCursorSet
+                  ? state.lastDocument
+                  : page.cursor,
+              hasMore: page.hasMore,
+              errorMessage: null,
+            );
+
+            _initialCursorSet = true;
+          },
+        );
       },
-      ifRight: (page) {
+      onError: (error) {
+        if (!mounted) return;
+
         state = state.copyWith(
           isLoading: false,
-          users: page.items,
-          lastDocument: page.cursor,
-          hasMore: page.hasMore,
+          errorMessage: error.toString(),
         );
       },
     );
@@ -103,15 +148,22 @@ class ChatUsersNotifier extends StateNotifier<ChatUsersState> {
     if (state.isLoading ||
         state.isLoadingMore ||
         !state.hasMore ||
-        _currentUserId.isEmpty) {
+        _currentUserId.isEmpty ||
+        state.lastDocument == null) {
       return;
     }
-    state = state.copyWith(isLoadingMore: true, errorMessage: null);
+
+    state = state.copyWith(
+      isLoadingMore: true,
+      errorMessage: null,
+    );
+
     final result = await _getChatUsersUseCase.execute(
       currentUserId: _currentUserId,
       lastDocument: state.lastDocument,
       limit: _limit,
     );
+
     if (!mounted) return;
 
     result.fold(
@@ -122,14 +174,26 @@ class ChatUsersNotifier extends StateNotifier<ChatUsersState> {
         );
       },
       ifRight: (page) {
+        final existingIds = state.users.map((user) => user.uid).toSet();
+
+        final newUsers = page.items
+            .where((user) => !existingIds.contains(user.uid))
+            .toList();
+
         state = state.copyWith(
           isLoadingMore: false,
-          users: [...state.users, ...page.items],
+          users: [...state.users, ...newUsers],
           lastDocument: page.cursor,
           hasMore: page.hasMore,
         );
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 }
 

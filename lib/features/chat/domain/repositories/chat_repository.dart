@@ -11,4 +11,9 @@ abstract class ChatRepository {
     DocumentSnapshot<Map<String, dynamic>>? lastDocument,
     int limit = 10,
   });
+  Stream<Either<AppFailure, PaginatedResult<ChatUserEntity>>>
+    watchRecentChatUsers({
+  required String currentUserId,
+  int limit = 10,
+});
 }

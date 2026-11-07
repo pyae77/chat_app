@@ -32,4 +32,16 @@ abstract class ChatRoomRepository {
     String chatRoomId,
     String currentUserId,
   );
+
+
+Future<Either<AppFailure, void>> updateTypingStatus(
+  String chatRoomId,
+  String userId,
+  bool isTyping,
+);
+
+Stream<Either<AppFailure, bool>> getTypingStatus(
+  String chatRoomId,
+  String userId,
+);
 }

@@ -9,6 +9,16 @@ abstract class FirestoreChatRoomDataSource {
   Future<void> sendMessage(String chatRoomId, MessageModel message);
   Future<void> sendImageMessage(String chatRoomId, MessageModel messageModel, String imagePath);
   Future<void> markMessagesAsRead(String chatRoomId, String currentUserId);
+  Future<void> updateTypingStatus(
+  String chatRoomId,
+  String userId,
+  bool isTyping,
+);
+
+Stream<bool> getTypingStatus(
+  String chatRoomId,
+  String userId,
+);
 }
 
 class FirestoreChatRoomDataSourceImpl implements FirestoreChatRoomDataSource {
@@ -118,5 +128,36 @@ Future<void> sendImageMessage(
     await batch.commit();
   }
 
-  
+  @override
+Future<void> updateTypingStatus(
+  String chatRoomId,
+  String userId,
+  bool isTyping,
+) async {
+  await _firestore
+      .collection('chat_rooms')
+      .doc(chatRoomId)
+      .collection('typing')
+      .doc(userId)
+      .set({
+    'isTyping': isTyping,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+}
+
+@override
+Stream<bool> getTypingStatus(
+  String chatRoomId,
+  String userId,
+) {
+  return _firestore
+      .collection('chat_rooms')
+      .doc(chatRoomId)
+      .collection('typing')
+      .doc(userId)
+      .snapshots()
+      .map((snapshot) {
+    return snapshot.data()?['isTyping'] ?? false;
+  });
+}
 }

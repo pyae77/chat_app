@@ -10,6 +10,7 @@ import 'package:flutter_chat_app/core/utils/image_picker_helper.dart';
 import 'package:flutter_chat_app/core/utils/image_viewer_helper.dart';
 import 'package:flutter_chat_app/core/utils/ui_helpers.dart';
 import 'package:flutter_chat_app/features/chat/domain/entities/message_entity.dart';
+import 'package:flutter_chat_app/features/chat/presentation/controllers/typing_controller.dart';
 import 'package:flutter_chat_app/features/chat/presentation/providers/chat_providers.dart';
 import 'package:flutter_chat_app/features/chat/presentation/widgets/image_source_dialog.dart';
 import 'package:flutter_chat_app/features/people/presentation/providers/people_providers.dart';
@@ -156,16 +157,11 @@ class ChatRoomScreen extends ConsumerWidget {
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
-                  CustomTextWidget(
-                    text: currentTargetUser.isOnline
-                        ? 'Online'
-                        : 'Offline',
-                    fontSize: 12,
-                    color: currentTargetUser.isOnline
-                        ? AppColors.success
-                        : AppColors.grey1,
-                    fontWeight: FontWeight.w600,
-                  ),
+                 _AppBarTypingStatus(
+  chatRoomId: chatRoomId,
+  targetUserId: targetUser.uid,
+  isOnline: currentTargetUser.isOnline,
+),
                 ],
               ),
             ],
@@ -174,17 +170,19 @@ class ChatRoomScreen extends ConsumerWidget {
         body: Column(
           children: [
             Expanded(
-              child: _MessageList(
-                chatRoomId: chatRoomId,
-                currentUserId: currentUserId,
-                targetUserName: currentTargetUser.name,
-              ),
-            ),
-            _ChatInputSection(
-              currentUserId: currentUserId,
-              targetUserName: currentTargetUser.name,
-              onSend: () => _sendMessage(ref, chatRoomId),
-            ),
+              child:_MessageList(
+          chatRoomId: chatRoomId,
+          currentUserId: currentUserId,
+          targetUserName: currentTargetUser.name,
+          targetUserId: targetUser.uid,
+        ),
+                    ),
+          _ChatInputSection(
+  chatRoomId: chatRoomId,
+  currentUserId: currentUserId,
+  targetUserName: currentTargetUser.name,
+  onSend: () => _sendMessage(ref, chatRoomId),
+),
           ],
         ),
       ),
@@ -201,11 +199,13 @@ class _MessageList extends ConsumerStatefulWidget {
   final String chatRoomId;
   final String currentUserId;
   final String targetUserName;
+  final String targetUserId;
 
   const _MessageList({
     required this.chatRoomId,
     required this.currentUserId,
     required this.targetUserName,
+    required this.targetUserId,
   });
 
   @override
@@ -334,11 +334,35 @@ class _MessageListState extends ConsumerState<_MessageList> {
           ),
           ifRight: (messages) {
             if (messages.isEmpty) {
-              return const Center(
-                child: CustomTextWidget(
-                  text: 'Say hi to start conversation!',
-                ),
-              );
+              return SingleChildScrollView(
+  controller: _scrollController,
+  reverse: true,
+  padding: const EdgeInsets.all(16),
+  child: Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      if (messages.isEmpty)
+        const Center(
+          child: CustomTextWidget(
+            text: 'Say hi to start conversation!',
+          ),
+        )
+      else
+        for (final message in messages.reversed)
+          _MessageBubble(
+            key: _messageKeys[message.id],
+            message: message,
+            currentUserId: widget.currentUserId,
+            targetUserName: widget.targetUserName,
+            isHighlighted:
+                _highlightedMessageId == message.id,
+            onReplyTap: _scrollToMessage,
+          ),
+
+     
+    ],
+  ),
+);
             }
 
             // Create or reuse keys for all messages.
@@ -365,19 +389,71 @@ class _MessageListState extends ConsumerState<_MessageList> {
               reverse: true,
               padding: const EdgeInsets.all(16),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final message in messages.reversed)
-                    _MessageBubble(
-                      key: _messageKeys[message.id],
-                      message: message,
-                      currentUserId: widget.currentUserId,
-                      targetUserName: widget.targetUserName,
-                      isHighlighted:
-                          _highlightedMessageId == message.id,
-                      onReplyTap: _scrollToMessage,
-                    ),
-                ],
+  mainAxisSize: MainAxisSize.min,
+  children: [
+  
+    // Message bubbles
+    for (final message in messages.reversed)
+      _MessageBubble(
+        key: _messageKeys[message.id],
+        message: message,
+        currentUserId: widget.currentUserId,
+        targetUserName: widget.targetUserName,
+        isHighlighted:
+            _highlightedMessageId == message.id,
+        onReplyTap: _scrollToMessage,
+      ),
+  ],
+),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+
+class _TypingIndicator extends ConsumerWidget {
+  final String chatRoomId;
+  final String targetUserId;
+
+  const _TypingIndicator({
+    required this.chatRoomId,
+    required this.targetUserId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final typingAsync = ref.watch(
+      typingStatusStreamProvider(
+        (chatRoomId, targetUserId),
+      ),
+    );
+
+    return typingAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (result) {
+        return result.fold(
+          ifLeft: (_) => const SizedBox.shrink(),
+          ifRight: (isTyping) {
+            if (!isTyping) {
+              return const SizedBox.shrink();
+            }
+
+            return const Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Typing...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               ),
             );
           },
@@ -387,6 +463,58 @@ class _MessageListState extends ConsumerState<_MessageList> {
   }
 }
 
+class _AppBarTypingStatus extends ConsumerWidget {
+  final String chatRoomId;
+  final String targetUserId;
+  final bool isOnline;
+
+  const _AppBarTypingStatus({
+    required this.chatRoomId,
+    required this.targetUserId,
+    required this.isOnline,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final typingAsync = ref.watch(
+      typingStatusStreamProvider(
+        (chatRoomId, targetUserId),
+      ),
+    );
+
+    return typingAsync.when(
+      loading: () => _buildStatus(),
+      error: (_, __) => _buildStatus(),
+      data: (result) {
+        return result.fold(
+          ifLeft: (_) => _buildStatus(),
+          ifRight: (isTyping) {
+            if (isTyping) {
+              return const CustomTextWidget(
+                text: 'Typing...',
+                fontSize: 12,
+                color: AppColors.success,
+              );
+            }
+
+            return _buildStatus();
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildStatus() {
+    return CustomTextWidget(
+      text: isOnline ? 'Online' : 'Offline',
+      fontSize: 12,
+      color: isOnline
+          ? AppColors.success
+          : AppColors.grey1,
+      fontWeight: FontWeight.w600,
+    );
+  }
+}
 
 // --------------------------------------------------
 // MESSAGE BUBBLE
@@ -819,11 +947,13 @@ class _ChatInputSection extends ConsumerWidget {
   final VoidCallback onSend;
   final String currentUserId;
   final String targetUserName;
+  final String chatRoomId;
 
   const _ChatInputSection({
     required this.onSend,
     required this.currentUserId,
     required this.targetUserName,
+    required this.chatRoomId,
   });
 
   @override
@@ -831,6 +961,11 @@ class _ChatInputSection extends ConsumerWidget {
     final selectedImagePath = ref.watch(selectedImagePathProvider);
     final replyMessage = ref.watch(selectedReplyMessageProvider);
     final messageController = ref.watch(chatMessageControllerProvider);
+    final typingController = ref.watch(
+  typingControllerProvider(
+    (chatRoomId, currentUserId),
+  ),
+);
 
     return SafeArea(
       child: Container(
@@ -904,15 +1039,19 @@ class _ChatInputSection extends ConsumerWidget {
                 ),
                 Expanded(
                   child: CustomTextField(
-                    controller: messageController,
-                    hintText: selectedImagePath != null
-                        ? 'Add a caption...'
-                        : 'Type a message...',
-                  ),
+  controller: messageController,
+  hintText: selectedImagePath != null
+      ? 'Add a caption...'
+      : 'Type a message...',
+  onChanged: typingController.handleTyping,
+),
                 ),
                 const SizedBox(width: 8),
                 InkWell(
-                  onTap: onSend,
+                   onTap: () async {
+    await typingController.stopTyping();
+    onSend();
+  },
                   child: Image.asset(
                     Assets.icons.icSend.path,
                     height: 24,

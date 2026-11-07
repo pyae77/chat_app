@@ -8,6 +8,11 @@ abstract class FirestoreChatDataSource {
     DocumentSnapshot<Map<String, dynamic>>? lastDocument,
     int limit = 10,
   });
+
+  Stream<PaginatedResult<ChatUserModel>> watchRecentChatUsers({
+  required String currentUserId,
+  int limit = 10,
+});
 }
 
 class FirestoreChatDataSourceImpl implements FirestoreChatDataSource {
@@ -58,4 +63,54 @@ class FirestoreChatDataSourceImpl implements FirestoreChatDataSource {
       hasMore: snapshot.docs.length == limit,
     );
   }
+
+
+  @override
+Stream<PaginatedResult<ChatUserModel>> watchRecentChatUsers({
+  required String currentUserId,
+  int limit = 10,
+}) {
+  final query = _firestore
+      .collection('chat_rooms')
+      .where('participants', arrayContains: currentUserId)
+      .orderBy('lastMessageTimestamp', descending: true)
+      .limit(limit);
+
+  return query.snapshots().asyncMap((snapshot) async {
+    final otherUserIds = snapshot.docs
+        .map((doc) {
+          final participants =
+              doc.data()['participants'] as List<dynamic>? ?? [];
+
+          return participants.whereType<String>().firstWhere(
+                (id) => id != currentUserId,
+                orElse: () => '',
+              );
+        })
+        .where((id) => id.isNotEmpty)
+        .toList();
+
+    final userDocs = await Future.wait(
+      otherUserIds.map(
+        (id) => _firestore.collection('users').doc(id).get(),
+      ),
+    );
+
+    final users = userDocs
+        .where((doc) => doc.exists && doc.data() != null)
+        .map(
+          (doc) => ChatUserModel.fromFirestore(
+            doc.data()!,
+            doc.id,
+          ),
+        )
+        .toList();
+
+    return PaginatedResult<ChatUserModel>(
+      items: users,
+      cursor: snapshot.docs.isEmpty ? null : snapshot.docs.last,
+      hasMore: snapshot.docs.length == limit,
+    );
+  });
+}
 }

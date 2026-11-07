@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:dart_either/dart_either.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_chat_app/features/chat/domain/usecases/get_typing_status_usecase.dart';
+import 'package:flutter_chat_app/features/chat/domain/usecases/update_typing_status_usecase.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
@@ -105,4 +107,29 @@ final messageImageBytesProvider =
     debugPrint('Image decode error: $e');
     return null;
   }
+});
+
+final updateTypingStatusUseCaseProvider =
+    Provider<UpdateTypingStatusUseCase>((ref) {
+  return UpdateTypingStatusUseCase(
+    ref.watch(chatRoomRepositoryProvider),
+  );
+});
+
+final getTypingStatusUseCaseProvider =
+    Provider<GetTypingStatusUseCase>((ref) {
+  return GetTypingStatusUseCase(
+    ref.watch(chatRoomRepositoryProvider),
+  );
+});
+
+final typingStatusStreamProvider = StreamProvider.family<
+    Either<AppFailure, bool>,
+    (String, String)>((ref, params) {
+  final useCase = ref.watch(getTypingStatusUseCaseProvider);
+
+  return useCase(
+    chatRoomId: params.$1,
+    userId: params.$2,
+  );
 });

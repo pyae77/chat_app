@@ -22,4 +22,15 @@ class GetChatUsersUseCase {
       limit: limit,
     );
   }
+
+  Stream<Either<AppFailure, PaginatedResult<ChatUserEntity>>>
+    watch({
+  required String currentUserId,
+  int limit = 10,
+}) {
+  return _repository.watchRecentChatUsers(
+    currentUserId: currentUserId,
+    limit: limit,
+  );
+}
 }

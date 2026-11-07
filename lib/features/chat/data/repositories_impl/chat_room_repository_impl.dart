@@ -131,4 +131,38 @@ class ChatRoomRepositoryImpl implements ChatRoomRepository {
       return Left(ServerFailure(e.toString()));
     }
   }
+
+  @override
+Future<Either<AppFailure, void>> updateTypingStatus(
+  String chatRoomId,
+  String userId,
+  bool isTyping,
+) async {
+  try {
+    await _dataSource.updateTypingStatus(
+      chatRoomId,
+      userId,
+      isTyping,
+    );
+
+    return const Right(null);
+  } catch (e) {
+    return Left(ServerFailure(e.toString()));
+  }
+}
+
+@override
+Stream<Either<AppFailure, bool>> getTypingStatus(
+  String chatRoomId,
+  String userId,
+) {
+  return _dataSource
+      .getTypingStatus(chatRoomId, userId)
+      .map<Either<AppFailure, bool>>(
+        (isTyping) => Right(isTyping),
+      )
+      .handleError((error) {
+        throw error;
+      });
+}
 }
